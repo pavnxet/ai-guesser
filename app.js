@@ -1,7 +1,7 @@
 // Configuration & Defaults
 const DEFAULT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjdjODlhMTFjLWNlMjgtNGI0Ny05ODg4LTExN2Q2ZWYxOTQwMiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzg0NjM2ODE4LCJleHAiOjE3ODg1NzU5MTd9.sdSu1aXcLei_BWEMGyPNHWfpBv-eHR62Pj35wS-o1dc";
 const DEFAULT_ENDPOINT = "https://qwen.aikit.club/v1/chat/completions";
-const DEFAULT_MODEL = "qwen3.5-flash";
+const DEFAULT_MODEL = "qwen3.8-max";
 
 // State
 let config = {
