@@ -419,7 +419,23 @@ async function callQwenApi(messages) {
     throw new Error("Empty response received from Qwen proxy.");
   }
 
-  return fullText;
+  return cleanAiResponse(fullText);
+}
+
+function cleanAiResponse(text) {
+  if (!text) return "";
+  // Strip <details>...</details>, <think>...</think>, <tool_calls>...</tool_calls>
+  text = text.replace(/<details[\s\S]*?<\/details>/gi, "");
+  text = text.replace(/<think[\s\S]*?<\/think>/gi, "");
+  text = text.replace(/<tool_calls[\s\S]*?<\/tool_calls>/gi, "");
+  text = text.replace(/<tool_call[\s\S]*?<\/tool_call>/gi, "");
+  // Strip unclosed <details> tags or metadata blocks
+  text = text.replace(/<details[\s\S]*/gi, "");
+  // Strip Markdown code blocks containing Response ID or Request ID metadata
+  text = text.replace(/```[\s\S]*?(Response ID|Request ID)[\s\S]*?```/gi, "");
+  // Strip inline Response ID / Request ID text
+  text = text.replace(/Response ID:[\s\S]*$/gi, "");
+  return text.trim();
 }
 
 function updateLogDisplay() {
