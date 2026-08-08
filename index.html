@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Guesser — Mind Reading Game</title>
+  <meta name="description" content="AI Guesser game powered by Qwen API. Challenge the AI to guess what you're thinking of!">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-glow"></div>
+  
+  <header class="app-header">
+    <div class="logo">
+      <span class="logo-icon">🔮</span>
+      <h1>AI<span>Guesser</span></h1>
+    </div>
+    <button id="settings-btn" class="btn-icon" title="API Settings">⚙️</button>
+  </header>
+
+  <main class="container">
+    <!-- Mode Selection View -->
+    <section id="mode-select-view" class="card view-section active">
+      <div class="hero">
+        <div class="orb-container">
+          <div class="orb"></div>
+          <span class="orb-emoji">🧙‍♂️</span>
+        </div>
+        <h2>Choose Your Game Mode</h2>
+        <p>Powered by Qwen AI — I can read your mind or guard secrets.</p>
+      </div>
+
+      <div class="mode-grid">
+        <div class="mode-card" data-mode="ai-guesses">
+          <div class="mode-icon">🧠</div>
+          <h3>Mind Reader</h3>
+          <p>You think of a character, object, animal or place. I ask questions to guess what it is!</p>
+          <button class="btn btn-primary">Play Mind Reader</button>
+        </div>
+
+        <div class="mode-card" data-mode="user-guesses">
+          <div class="mode-icon">🕵️</div>
+          <h3>Secret Keeper</h3>
+          <p>I pick a secret item. You ask yes/no questions and try to guess what I picked!</p>
+          <button class="btn btn-secondary">Play Secret Keeper</button>
+        </div>
+
+        <div class="mode-card" data-mode="clue-guesser">
+          <div class="mode-icon">⚡</div>
+          <h3>Speed Clues</h3>
+          <p>Give me 3 clues or a cryptic description. I'll guess it in one shot!</p>
+          <button class="btn btn-tertiary">Play Speed Clues</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Setup View (for Mind Reader mode) -->
+    <section id="setup-view" class="card view-section">
+      <button class="btn-back">← Back</button>
+      <h2>What are you thinking of?</h2>
+      <p class="subtitle">Pick a category to help the AI start asking questions.</p>
+      
+      <div class="category-grid">
+        <button class="cat-btn" data-cat="Character / Real Person">👤 Person / Character</button>
+        <button class="cat-btn" data-cat="Animal / Creature">🦁 Animal / Creature</button>
+        <button class="cat-btn" data-cat="Object / Technology">📱 Object / Technology</button>
+        <button class="cat-btn" data-cat="Movie / Game / Book">🎬 Movie / Game</button>
+        <button class="cat-btn" data-cat="Food / Drink">🍕 Food / Drink</button>
+        <button class="cat-btn" data-cat="Place / Location">🌍 Place / City</button>
+        <button class="cat-btn" data-cat="Anything">✨ Surprise Me (Anything)</button>
+      </div>
+    </section>
+
+    <!-- Active Game View (Mind Reader / Secret Keeper) -->
+    <section id="game-view" class="card view-section">
+      <div class="game-header">
+        <button class="btn-back">← Quit</button>
+        <div class="game-status">
+          <span id="question-count" class="badge">Question 1/20</span>
+          <span id="game-mode-label" class="badge-mode">Mind Reader</span>
+        </div>
+      </div>
+
+      <div class="ai-avatar-row">
+        <div class="orb-small pulse"></div>
+        <div class="ai-speech-bubble" id="ai-message">
+          Preparing my mind reading spell...
+        </div>
+      </div>
+
+      <!-- Mind Reader Controls (User answers AI questions) -->
+      <div id="mind-reader-controls" class="controls-panel">
+        <div class="answer-buttons">
+          <button class="btn btn-ans" data-ans="Yes">Yes</button>
+          <button class="btn btn-ans" data-ans="No">No</button>
+          <button class="btn btn-ans" data-ans="Don't Know">Don't Know</button>
+          <button class="btn btn-ans" data-ans="Probably / Mostly">Probably</button>
+          <button class="btn btn-ans" data-ans="Probably Not">Probably Not</button>
+        </div>
+      </div>
+
+      <!-- Secret Keeper Controls (User asks AI questions or guesses) -->
+      <div id="secret-keeper-controls" class="controls-panel hidden">
+        <form id="user-question-form" class="input-group">
+          <input type="text" id="user-input-text" placeholder="Ask a question (e.g. Is it an animal?) or make a guess..." required>
+          <button type="submit" class="btn btn-primary">Ask / Guess</button>
+        </form>
+      </div>
+
+      <!-- AI Guess Display -->
+      <div id="ai-guess-box" class="guess-box hidden">
+        <div class="guess-header">🔮 My Prediction Is:</div>
+        <h2 id="ai-guess-title">...</h2>
+        <p id="ai-guess-desc">Am I correct?</p>
+        <div class="guess-actions">
+          <button id="guess-yes" class="btn btn-success">🎉 Yes, You Got It!</button>
+          <button id="guess-no" class="btn btn-danger">❌ No, Keep Guessing</button>
+        </div>
+      </div>
+
+      <!-- Log / History -->
+      <div class="history-accordion">
+        <details>
+          <summary>View Question Log (<span id="log-count">0</span>)</summary>
+          <div id="history-log" class="log-list"></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Speed Clues View -->
+    <section id="clue-view" class="card view-section">
+      <button class="btn-back">← Back</button>
+      <h2>Speed Clues</h2>
+      <p class="subtitle">Provide clues and see if the AI can guess your secret item instantly.</p>
+      
+      <form id="clue-form" class="clue-form">
+        <div class="form-group">
+          <label for="clue-1">Clue 1:</label>
+          <input type="text" id="clue-1" placeholder="e.g. It lives in Australia" required>
+        </div>
+        <div class="form-group">
+          <label for="clue-2">Clue 2:</label>
+          <input type="text" id="clue-2" placeholder="e.g. It carries its babies in a pouch" required>
+        </div>
+        <div class="form-group">
+          <label for="clue-3">Clue 3:</label>
+          <input type="text" id="clue-3" placeholder="e.g. It hops on two legs" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Make AI Guess!</button>
+      </form>
+
+      <div id="clue-result" class="result-card hidden">
+        <div class="loader hidden" id="clue-loader">Reading clues...</div>
+        <div id="clue-content"></div>
+      </div>
+    </section>
+
+    <!-- Game End / Victory View -->
+    <section id="end-view" class="card view-section text-center">
+      <div id="end-icon" class="big-icon">🏆</div>
+      <h2 id="end-title">Game Over!</h2>
+      <p id="end-message">Great game!</p>
+      <div id="reveal-box" class="reveal-box hidden">
+        <p>What was your secret item?</p>
+        <div class="input-group">
+          <input type="text" id="reveal-input" placeholder="e.g. Kangaroo">
+          <button id="submit-reveal" class="btn btn-primary">Save to AI memory</button>
+        </div>
+      </div>
+      <button id="play-again-btn" class="btn btn-primary btn-lg mt-4">Play Again</button>
+    </section>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content card">
+      <div class="modal-header">
+        <h3>⚙️ Qwen API Settings</h3>
+        <button id="close-modal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="api-endpoint">API Base URL:</label>
+          <input type="text" id="api-endpoint" value="https://qwen.aikit.club/v1/chat/completions">
+        </div>
+        <div class="form-group">
+          <label for="api-token">Qwen Bearer Token:</label>
+          <input type="password" id="api-token" placeholder="Bearer Token">
+          <small>Leave empty to use default preview token, or paste your token from chat.qwen.ai</small>
+        </div>
+        <div class="form-group">
+          <label for="api-model">Qwen Model:</label>
+          <select id="api-model">
+            <option value="qwen3.5-flash" selected>qwen3.5-flash (Fast & Accurate)</option>
+            <option value="qwen3.6-plus">qwen3.6-plus (Advanced)</option>
+            <option value="qwen3.8-max">qwen3.8-max (Maximum Reasoning)</option>
+            <option value="qwen-max-latest">qwen-max-latest</option>
+          </select>
+        </div>
+        <button id="save-settings" class="btn btn-primary btn-block">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
