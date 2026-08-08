@@ -18,7 +18,6 @@ let gameState = {
   history: [], // [{role: 'user'|'assistant', content: ''}]
   log: [], // [{q: '', a: ''}]
   aiSecretItem: '',
-  currentChatId: null,
   isFinished: false
 };
 
@@ -150,7 +149,6 @@ async function startMindReaderGame(category) {
   gameState.questionCount = 1;
   gameState.history = [];
   gameState.log = [];
-  gameState.currentChatId = null;
   gameState.isFinished = false;
 
   elements.modeBadge.textContent = "Mind Reader";
@@ -243,7 +241,6 @@ async function startSecretKeeperGame() {
   gameState.questionCount = 1;
   gameState.history = [];
   gameState.log = [];
-  gameState.currentChatId = null;
   gameState.isFinished = false;
 
   elements.modeBadge.textContent = "Secret Keeper";
@@ -353,11 +350,6 @@ async function callQwenApi(messages) {
     temperature: 0.7
   };
 
-  if (gameState.currentChatId) {
-    body.chat_id = gameState.currentChatId;
-    body.conversation_id = gameState.currentChatId;
-  }
-
   const res = await fetch(config.endpoint, {
     method: "POST",
     headers: headers,
@@ -372,9 +364,6 @@ async function callQwenApi(messages) {
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const data = await res.json();
-    if (data.chat_id || data.conversation_id) {
-      gameState.currentChatId = data.chat_id || data.conversation_id;
-    }
     if (data.choices && data.choices[0] && data.choices[0].message) {
       return cleanAiResponse(data.choices[0].message.content);
     }
@@ -400,10 +389,6 @@ async function callQwenApi(messages) {
         if (dataStr === "[DONE]") continue;
         try {
           const json = JSON.parse(dataStr);
-          if (!gameState.currentChatId) {
-            const cid = json.chat_id || json.conversation_id || (json.id && json.id.startsWith("c/") ? json.id : null);
-            if (cid) gameState.currentChatId = cid;
-          }
           const choice = json.choices && json.choices[0];
           if (choice) {
             const content = (choice.delta && choice.delta.content) || (choice.message && choice.message.content) || "";
@@ -421,10 +406,6 @@ async function callQwenApi(messages) {
     if (dataStr !== "[DONE]") {
       try {
         const json = JSON.parse(dataStr);
-        if (!gameState.currentChatId) {
-          const cid = json.chat_id || json.conversation_id || (json.id && json.id.startsWith("c/") ? json.id : null);
-          if (cid) gameState.currentChatId = cid;
-        }
         const choice = json.choices && json.choices[0];
         if (choice) {
           const content = (choice.delta && choice.delta.content) || (choice.message && choice.message.content) || "";
