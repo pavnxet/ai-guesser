@@ -161,37 +161,17 @@ async function startMindReaderGame(category) {
   switchView("game");
   elements.aiMessage.textContent = "🧙‍♂️ Channeling the cosmic AI forces... Thinking of your first question...";
 
-  const systemPrompt = `You are Akinator, a master mind reader AI. The user is thinking of something in the category: "${category}".
-Your goal is to guess what the user is thinking of within 20 questions.
-Rules:
-1. Ask one sharp, clever yes/no question at a time to narrow down the target.
-2. If you are 80%+ confident you know the exact answer, output your guess in this format:
-GUESS: <Item Name>
-Reasoning: <Short 1-sentence clue why you think so>
-3. Otherwise, just output your single question directly without extra conversational filler.`;
-
-  gameState.history = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: "I have picked my secret item. Ask your first question!" }
-  ];
-
   await fetchNextAiAction();
 }
 
 async function handleUserAnswer(answer) {
   if (gameState.isFinished) return;
 
-  const lastQuestion = gameState.history[gameState.history.length - 1].content;
-  gameState.log.push({ q: lastQuestion, a: answer });
+  const currentQuestion = gameState.currentQuestionText || elements.aiMessage.textContent;
+  gameState.log.push({ q: currentQuestion, a: answer });
   updateLogDisplay();
 
-  gameState.history.push({ role: "user", content: `My answer is: ${answer}` });
   gameState.questionCount++;
-
-  if (gameState.questionCount > gameState.maxQuestions) {
-    // Force final guess
-    gameState.history.push({ role: "user", content: "You reached 20 questions! Make your single best final guess right now using GUESS: <Item Name>." });
-  }
 
   elements.questionCountBadge.textContent = `Question ${Math.min(gameState.questionCount, 20)}/${gameState.maxQuestions}`;
   elements.aiMessage.textContent = "🤔 Processing your answer...";
@@ -201,8 +181,9 @@ async function handleUserAnswer(answer) {
 
 async function fetchNextAiAction() {
   try {
-    const aiResponse = await callQwenApi(gameState.history);
-    gameState.history.push({ role: "assistant", content: aiResponse });
+    const payload = buildMindReaderPayload();
+    const aiResponse = await callQwenApi(payload);
+    gameState.currentQuestionText = aiResponse;
 
     if (aiResponse.includes("GUESS:")) {
       const match = aiResponse.match(/GUESS:\s*([^\n]+)/i);
@@ -223,12 +204,41 @@ async function fetchNextAiAction() {
   }
 }
 
+function buildMindReaderPayload() {
+  const systemPrompt = `You are Akinator, a master mind reader AI. The user is thinking of something in the category: "${gameState.category}".
+Your goal is to guess what the user is thinking of within 20 questions.
+Rules:
+1. Ask ONE sharp, clever yes/no question at a time to narrow down the target.
+2. DO NOT repeat any question that has already been asked in the transcript.
+3. If you are 80%+ confident you know the exact answer, output your guess in this format:
+GUESS: <Item Name>
+Reasoning: <Short 1-sentence clue why you think so>
+4. Otherwise, output ONLY your single question directly without extra conversational filler.`;
+
+  let userPrompt = `Target Category: ${gameState.category}\nQuestion Number: ${gameState.questionCount} of 20\n\n`;
+
+  if (gameState.log.length > 0) {
+    userPrompt += `Transcript of Questions Asked and Answers Received So Far:\n`;
+    gameState.log.forEach((item, index) => {
+      userPrompt += `${index + 1}. Q: "${item.q}" -> User Answer: "${item.a}"\n`;
+    });
+    userPrompt += `\nBased on all previous answers above, ask Question ${gameState.questionCount} (DO NOT repeat any previous question), or output GUESS: <Item> if confident.`;
+  } else {
+    userPrompt += `I have picked my secret item. Ask Question 1!`;
+  }
+
+  return [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt }
+  ];
+}
+
 function handleWrongGuess() {
   elements.aiGuessBox.classList.add("hidden");
   if (gameState.questionCount >= gameState.maxQuestions) {
     finishGame(false, "AI ran out of questions! You win!");
   } else {
-    gameState.history.push({ role: "user", content: "That guess was wrong! Please ask another question to keep narrowing down." });
+    gameState.log.push({ q: elements.aiGuessTitle.textContent, a: "Wrong Guess" });
     fetchNextAiAction();
   }
 }
@@ -253,43 +263,28 @@ async function startSecretKeeperGame() {
   switchView("game");
   elements.aiMessage.textContent = "🕵️ Picking a secret item from universe... Hold on!";
 
-  const systemPrompt = `You are a Secret Keeper game host. 
-1. Pick a well-known secret object, animal, character, or place.
-2. In your first message, confirm you have picked a secret item and reveal ONLY its broad category (e.g. "I am thinking of a famous fictional character").
-3. As the user asks Yes/No questions or makes guesses, answer honestly with "Yes", "No", "Partially", or "Close!".
-4. If the user guesses the item correctly, reply with "CORRECT! You solved it! The secret item was indeed [item name]."`;
-
-  gameState.history = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: "Pick a secret item and let's play!" }
-  ];
-
-  await fetchNextAiActionSecretKeeper();
+  await fetchNextAiActionSecretKeeper("");
 }
 
 async function handleSecretKeeperQuestion(questionText) {
   if (!questionText || gameState.isFinished) return;
 
-  gameState.log.push({ q: questionText, a: "..." });
-  updateLogDisplay();
-
-  gameState.history.push({ role: "user", content: questionText });
-  gameState.questionCount++;
-  elements.questionCountBadge.textContent = `Question ${Math.min(gameState.questionCount, 20)}/${gameState.maxQuestions}`;
   elements.aiMessage.textContent = "Thinking...";
 
-  await fetchNextAiActionSecretKeeper();
+  await fetchNextAiActionSecretKeeper(questionText);
 }
 
-async function fetchNextAiActionSecretKeeper() {
+async function fetchNextAiActionSecretKeeper(latestUserQuestion) {
   try {
-    const aiResponse = await callQwenApi(gameState.history);
-    gameState.history.push({ role: "assistant", content: aiResponse });
+    const payload = buildSecretKeeperPayload(latestUserQuestion);
+    const aiResponse = await callQwenApi(payload);
 
     elements.aiMessage.textContent = aiResponse;
 
-    if (gameState.log.length > 0 && gameState.log[gameState.log.length - 1].a === "...") {
-      gameState.log[gameState.log.length - 1].a = aiResponse;
+    if (latestUserQuestion) {
+      gameState.log.push({ q: latestUserQuestion, a: aiResponse });
+      gameState.questionCount++;
+      elements.questionCountBadge.textContent = `Question ${Math.min(gameState.questionCount, 20)}/${gameState.maxQuestions}`;
       updateLogDisplay();
     }
 
@@ -299,6 +294,33 @@ async function fetchNextAiActionSecretKeeper() {
   } catch (err) {
     elements.aiMessage.textContent = `⚠️ Error: ${err.message}`;
   }
+}
+
+function buildSecretKeeperPayload(latestUserQuestion) {
+  const systemPrompt = `You are a Secret Keeper game host. 
+1. Pick a well-known secret object, animal, character, or place. Keep the secret item consistent throughout the entire game.
+2. In your first message, confirm you have picked a secret item and reveal ONLY its broad category (e.g. "I am thinking of a famous fictional character").
+3. As the user asks Yes/No questions or makes guesses, answer honestly with "Yes", "No", "Partially", or "Close!".
+4. If the user guesses the item correctly, reply with "CORRECT! You solved it! The secret item was indeed [item name]."`;
+
+  let userPrompt = `Game Mode: Secret Keeper\nQuestion Number: ${gameState.questionCount} of 20\n\n`;
+
+  if (gameState.log.length > 0) {
+    userPrompt += `Transcript of User Questions & Your Answers So Far:\n`;
+    gameState.log.forEach((item, index) => {
+      userPrompt += `${index + 1}. User asked: "${item.q}" -> Your Answer: "${item.a}"\n`;
+    });
+    if (latestUserQuestion) {
+      userPrompt += `\nLatest User Question/Guess: "${latestUserQuestion}"\nPlease provide your answer (Yes/No/Partially/Close) or confirm CORRECT! if guessed correctly.`;
+    }
+  } else {
+    userPrompt += `Start game! Pick a secret item and reveal ONLY its broad category.`;
+  }
+
+  return [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt }
+  ];
 }
 
 // ----------------------------------------------------
