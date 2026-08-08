@@ -346,7 +346,7 @@ async function callQwenApi(messages) {
   const body = {
     model: config.model,
     messages: messages,
-    stream: false,
+    stream: true,
     temperature: 0.7
   };
 
@@ -361,12 +361,65 @@ async function callQwenApi(messages) {
     throw new Error(`API Error (${res.status}): ${errText || res.statusText}`);
   }
 
-  const data = await res.json();
-  if (data.choices && data.choices[0] && data.choices[0].message) {
-    return data.choices[0].message.content;
-  } else {
-    throw new Error("Invalid response shape from Qwen proxy.");
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const data = await res.json();
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      return data.choices[0].message.content;
+    }
   }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("data: ")) {
+        const dataStr = trimmed.substring(6).trim();
+        if (dataStr === "[DONE]") continue;
+        try {
+          const json = JSON.parse(dataStr);
+          const choice = json.choices && json.choices[0];
+          if (choice) {
+            const content = (choice.delta && choice.delta.content) || (choice.message && choice.message.content) || "";
+            fullText += content;
+          }
+        } catch (e) {
+          // ignore partial JSON parse errors
+        }
+      }
+    }
+  }
+
+  if (buffer.trim().startsWith("data: ")) {
+    const dataStr = buffer.trim().substring(6).trim();
+    if (dataStr !== "[DONE]") {
+      try {
+        const json = JSON.parse(dataStr);
+        const choice = json.choices && json.choices[0];
+        if (choice) {
+          const content = (choice.delta && choice.delta.content) || (choice.message && choice.message.content) || "";
+          fullText += content;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (!fullText) {
+    throw new Error("Empty response received from Qwen proxy.");
+  }
+
+  return fullText;
 }
 
 function updateLogDisplay() {
