@@ -207,13 +207,15 @@ async function fetchNextAiAction() {
 function buildMindReaderPayload() {
   const systemPrompt = `You are Akinator, a master mind reader AI. The user is thinking of something in the category: "${gameState.category}".
 Your goal is to guess what the user is thinking of within 20 questions.
-Rules:
-1. Ask ONE sharp, clever yes/no question at a time to narrow down the target.
-2. DO NOT repeat any question that has already been asked in the transcript.
-3. If you are 80%+ confident you know the exact answer, output your guess in this format:
+
+CRITICAL LOGICAL DEDUCTION RULES:
+1. STRICT CONSISTENCY: Read the ENTIRE transcript of prior Q&As carefully. Your next question MUST 100% respect all previous answers and NEVER contradict a prior answer (e.g. if User said HAS legs=Yes, NEVER ask if it is a snake/legless animal).
+2. IMMEDIATE NARROWING: If the User answered YES to a specific subcategory (e.g. "Is it a lizard? -> Yes"), your next question MUST either ask a trait distinguishing specific species within that subcategory (e.g. "Can it change colors?", "Is it a giant monitor lizard?") or output a GUESS.
+3. NO REPEATS: Never ask a question that was already asked in the transcript.
+4. GUESS FORMAT: If you are 70%+ confident, output:
 GUESS: <Item Name>
 Reasoning: <Short 1-sentence clue why you think so>
-4. Otherwise, output ONLY your single question directly without extra conversational filler.`;
+5. Otherwise, output ONLY your single question directly without conversational filler.`;
 
   let userPrompt = `Target Category: ${gameState.category}\nQuestion Number: ${gameState.questionCount} of 20\n\n`;
 
@@ -222,7 +224,10 @@ Reasoning: <Short 1-sentence clue why you think so>
     gameState.log.forEach((item, index) => {
       userPrompt += `${index + 1}. Q: "${item.q}" -> User Answer: "${item.a}"\n`;
     });
-    userPrompt += `\nBased on all previous answers above, ask Question ${gameState.questionCount} (DO NOT repeat any previous question), or output GUESS: <Item> if confident.`;
+    userPrompt += `\nINSTRUCTION FOR QUESTION ${gameState.questionCount}:
+- Analyze all ${gameState.log.length} answers above carefully.
+- Ensure your question strictly aligns with all previous answers (zero contradictions).
+- If ready to guess, output GUESS: <Item Name>. Otherwise ask Question ${gameState.questionCount}.`;
   } else {
     userPrompt += `I have picked my secret item. Ask Question 1!`;
   }
