@@ -346,11 +346,6 @@ async function callQwenApi(messages) {
     "Content-Type": "application/json"
   };
 
-  if (gameState.currentChatId) {
-    headers["x-chat-id"] = gameState.currentChatId;
-    headers["x-conversation-id"] = gameState.currentChatId;
-  }
-
   const body = {
     model: config.model,
     messages: messages,
@@ -361,7 +356,6 @@ async function callQwenApi(messages) {
   if (gameState.currentChatId) {
     body.chat_id = gameState.currentChatId;
     body.conversation_id = gameState.currentChatId;
-    body.session_id = gameState.currentChatId;
   }
 
   const res = await fetch(config.endpoint, {
@@ -375,16 +369,11 @@ async function callQwenApi(messages) {
     throw new Error(`API Error (${res.status}): ${errText || res.statusText}`);
   }
 
-  const headerChatId = res.headers.get("x-chat-id") || res.headers.get("chat_id") || res.headers.get("x-conversation-id");
-  if (headerChatId && !gameState.currentChatId) {
-    gameState.currentChatId = headerChatId;
-  }
-
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const data = await res.json();
-    if (data.chat_id || data.conversation_id || data.id) {
-      gameState.currentChatId = gameState.currentChatId || data.chat_id || data.conversation_id || data.id;
+    if (data.chat_id || data.conversation_id) {
+      gameState.currentChatId = data.chat_id || data.conversation_id;
     }
     if (data.choices && data.choices[0] && data.choices[0].message) {
       return cleanAiResponse(data.choices[0].message.content);
@@ -412,7 +401,7 @@ async function callQwenApi(messages) {
         try {
           const json = JSON.parse(dataStr);
           if (!gameState.currentChatId) {
-            const cid = json.chat_id || json.conversation_id || json.session_id || json.id;
+            const cid = json.chat_id || json.conversation_id || (json.id && json.id.startsWith("c/") ? json.id : null);
             if (cid) gameState.currentChatId = cid;
           }
           const choice = json.choices && json.choices[0];
@@ -433,7 +422,7 @@ async function callQwenApi(messages) {
       try {
         const json = JSON.parse(dataStr);
         if (!gameState.currentChatId) {
-          const cid = json.chat_id || json.conversation_id || json.session_id || json.id;
+          const cid = json.chat_id || json.conversation_id || (json.id && json.id.startsWith("c/") ? json.id : null);
           if (cid) gameState.currentChatId = cid;
         }
         const choice = json.choices && json.choices[0];
